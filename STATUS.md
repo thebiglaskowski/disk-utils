@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Version:** 1.1.0 (Performance Optimizations)
-**Last Updated:** 2026-01-27
+**Version:** 1.1.1 (Bug Fixes)
+**Last Updated:** 2026-01-28
 
 ### Completed
 

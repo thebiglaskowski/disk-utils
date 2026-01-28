@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-01-28
+
+### Bug Fixes
+
+#### Fixed
+- `parse_size()` no longer crashes on invalid input like "-10MB" (now returns None)
+- `parse_size()` now rejects negative values (returns None instead of negative bytes)
+- `print_disk_usage()` handles edge case where disk reports total=0
+
+#### Added
+- CI/CD pipeline with GitHub Actions (tests on Python 3.8/3.10/3.12, Ubuntu/Windows)
+- `KNOWN_ISSUES.md` documenting accepted technical debt and maintenance policies
+- Test coverage for parse_size edge cases (101 total tests)
+
 ## [1.1.0] - 2026-01-27
 
 ### Performance Optimizations
