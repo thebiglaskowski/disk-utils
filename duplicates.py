@@ -666,8 +666,9 @@ def interactive_menu() -> dict:
         console.print("\n[bold cyan]📁 Backup Directory[/]")
         console.print("[dim]Enter the folder where duplicate files will be moved.[/]\n")
         
-        backup_dir = questionary.text(
+        backup_dir = questionary.path(
             "Backup folder path:",
+            only_directories=True,
             style=MENU_STYLE
         ).ask()
         
