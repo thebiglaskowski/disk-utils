@@ -49,6 +49,7 @@ from rich.layout import Layout
 from rich import box
 from rich.bar import Bar
 from rich.columns import Columns
+from rich.markdown import Markdown
 
 # Questionary for interactive menus
 import questionary
@@ -556,72 +557,128 @@ def print_file_results(largest_files: List[Tuple[int, str]], stats: Dict):
         console.print(ext_table)
 
 
+def get_item_emoji(path: str, is_dir: bool = True) -> str:
+    """Get an appropriate emoji for a file/directory based on its name."""
+    name = os.path.basename(path).lower()
+
+    if is_dir:
+        # Directory patterns
+        if any(x in name for x in ['game', 'steam', 'epic', 'fortnite', 'minecraft']):
+            return '🎮'
+        elif any(x in name for x in ['photo', 'picture', 'image', 'dcim', 'camera']):
+            return '📸'
+        elif any(x in name for x in ['video', 'movie', 'film']):
+            return '🎬'
+        elif any(x in name for x in ['music', 'audio', 'spotify']):
+            return '🎵'
+        elif any(x in name for x in ['download']):
+            return '📥'
+        elif any(x in name for x in ['document', 'doc']):
+            return '📝'
+        elif any(x in name for x in ['backup', 'archive']):
+            return '💾'
+        elif any(x in name for x in ['cache', 'temp', 'tmp']):
+            return '🗑️'
+        elif any(x in name for x in ['node_modules', 'venv', '.git', 'package']):
+            return '📦'
+        elif any(x in name for x in ['program', 'app', 'software']):
+            return '⚙️'
+        elif any(x in name for x in ['user', 'profile']):
+            return '👤'
+        elif any(x in name for x in ['system', 'windows']):
+            return '🖥️'
+        elif any(x in name for x in ['model', 'ollama', 'llm', 'ai']):
+            return '🤖'
+        return '📁'
+    else:
+        # File patterns
+        ext = os.path.splitext(name)[1].lower()
+        if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+            return '🖼️'
+        elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.wmv']:
+            return '🎬'
+        elif ext in ['.mp3', '.wav', '.flac', '.aac', '.ogg']:
+            return '🎵'
+        elif ext in ['.zip', '.rar', '.7z', '.tar', '.gz']:
+            return '📦'
+        elif ext in ['.exe', '.msi', '.dll']:
+            return '⚙️'
+        elif ext in ['.pdf']:
+            return '📕'
+        elif ext in ['.doc', '.docx', '.txt', '.md']:
+            return '📝'
+        elif ext in ['.iso', '.img']:
+            return '💿'
+        elif ext in ['.log', '.tmp']:
+            return '🗑️'
+        return '📄'
+
+
 def print_treemap(data: List[Tuple[int, str]], total_size: int, title: str = "Treemap"):
-    """Display a terminal-based treemap visualization."""
+    """Display a terminal-based treemap visualization as a readable bar chart."""
     if not data:
         return
 
     console.print()
-    console.print(Panel(
-        f"[bold]{title}[/]\n[dim]Block size represents relative space usage[/]",
-        border_style="cyan"
-    ))
 
-    # Calculate percentages and create blocks
-    terminal_width = min(console.width - 4, 100)
-    blocks_per_row = 50
+    # Determine if this is files or directories
+    is_dirs = "Director" in title
 
-    rows = []
-    current_row = []
-    current_row_size = 0
+    # Create a table for the treemap
+    table = Table(
+        title=f"{'📊' if is_dirs else '📈'} {title}",
+        box=box.ROUNDED,
+        title_style="bold cyan",
+        show_header=True,
+        header_style="bold"
+    )
+    table.add_column("#", style="dim", width=3, justify="right")
+    table.add_column("", width=2)  # Emoji column
+    table.add_column("Name", style="cyan", max_width=40)
+    table.add_column("Size", justify="right", width=10)
+    table.add_column("%", justify="right", width=6)
+    table.add_column("Usage", width=30)
 
-    for size, path in data[:20]:  # Limit to top 20 for readability
+    max_size = data[0][0] if data else 1
+    bar_width = 25
+
+    for i, (size, path) in enumerate(data[:20], start=1):  # Top 20
         pct = (size / total_size) * 100 if total_size > 0 else 0
-        blocks = max(1, int((size / total_size) * blocks_per_row)) if total_size > 0 else 1
 
+        # Get display name
         name = os.path.basename(path) or path
-        if len(name) > 15:
-            name = name[:12] + "..."
+        if len(name) > 38:
+            name = name[:35] + "..."
 
-        entry = {
-            'name': name,
-            'size': size,
-            'pct': pct,
-            'blocks': blocks,
-            'style': get_size_style(size)
-        }
+        # Get emoji
+        emoji = get_item_emoji(path, is_dirs)
 
-        if current_row_size + blocks <= blocks_per_row:
-            current_row.append(entry)
-            current_row_size += blocks
-        else:
-            if current_row:
-                rows.append(current_row)
-            current_row = [entry]
-            current_row_size = blocks
+        # Create visual bar
+        filled = int((size / max_size) * bar_width)
+        bar = Text()
+        bar.append("█" * filled, style=get_size_style(size))
+        bar.append("░" * (bar_width - filled), style="dim")
 
-    if current_row:
-        rows.append(current_row)
+        table.add_row(
+            str(i),
+            emoji,
+            name,
+            format_size(size),
+            f"{pct:.1f}%",
+            bar
+        )
 
-    # Render rows
-    for row in rows:
-        line = Text()
-        for entry in row:
-            block_char = "█" * entry['blocks']
-            line.append(block_char, style=entry['style'])
-        console.print(line)
+    console.print(table)
 
-        # Labels row
-        label_line = Text()
-        for entry in row:
-            label = f"{entry['name']} ({entry['pct']:.1f}%)"
-            padding = entry['blocks'] - len(label)
-            if padding > 0:
-                label_line.append(label + " " * padding, style="dim")
-            else:
-                label_line.append(label[:entry['blocks']], style="dim")
-        console.print(label_line)
-        console.print()
+    # Summary footer
+    other_count = len(data) - 20 if len(data) > 20 else 0
+    if other_count > 0:
+        other_size = sum(size for size, _ in data[20:])
+        other_pct = (other_size / total_size) * 100 if total_size > 0 else 0
+        console.print(f"[dim]  ... and {other_count} more items ({format_size(other_size)}, {other_pct:.1f}%)[/]")
+
+    console.print()
+    console.print(f"[dim]Total: {format_size(total_size)}[/]")
 
 
 def print_dir_results(largest_dirs: List[Tuple[int, str]], stats: Dict):
@@ -930,7 +987,7 @@ def ai_analyze_results(results: Dict, model: str) -> str:
     # Format results for the prompt
     if result_type == "files":
         items_text = "\n".join([
-            f"  {i+1}. {format_size(size)} - {path}" 
+            f"  {i+1}. {format_size(size)} - {path}"
             for i, (size, path) in enumerate(data[:20])  # Limit to top 20
         ])
         prompt = f"""Analyze these largest files found on a disk scan and provide cleanup recommendations.
@@ -942,16 +999,30 @@ Scan Statistics:
 Top {min(20, len(data))} Largest Files:
 {items_text}
 
-Please:
-1. Categorize these files (temp files, caches, logs, media, documents, etc.)
-2. Identify which are likely SAFE to delete (temp files, caches, old logs)
-3. Identify which should be KEPT (important documents, system files)
-4. Provide specific cleanup recommendations
+Format your response as follows (use these exact headers with emojis):
 
-Be concise and actionable."""
+## 🗂️ File Categories
+Briefly categorize what types of files were found.
+
+## ✅ Safe to Delete
+List files/patterns that are likely safe to remove (temp files, caches, old logs, etc.).
+Use bullet points with the file name/path and brief reason.
+
+## ⚠️ Review Before Deleting
+List files that need user review before deletion.
+Use bullet points with the file name/path and why it needs review.
+
+## 🛡️ Keep (Do Not Delete)
+List important files that should NOT be deleted (system files, important documents).
+Use bullet points with the file name/path and why it's important.
+
+## 💡 Recommendations
+Provide 2-3 specific, actionable cleanup recommendations.
+
+Be concise. Use short bullet points."""
     else:
         items_text = "\n".join([
-            f"  {i+1}. {format_size(size)} - {path}" 
+            f"  {i+1}. {format_size(size)} - {path}"
             for i, (size, path) in enumerate(data[:20])
         ])
         prompt = f"""Analyze these largest directories found on a disk scan and provide cleanup recommendations.
@@ -962,12 +1033,27 @@ Scan Statistics:
 Top {min(20, len(data))} Largest Directories:
 {items_text}
 
-Please:
-1. Identify directories that likely contain unnecessary data (node_modules, cache, temp, old backups)
-2. Identify directories that should NOT be deleted (system folders, important data)
-3. Provide specific cleanup recommendations
+Format your response as follows (use these exact headers with emojis):
 
-Be concise and actionable."""
+## 🗂️ Directory Overview
+Briefly describe what's taking up the most space.
+
+## ✅ Safe to Clean
+List directories that likely contain unnecessary data (node_modules, caches, temp files, old backups).
+Use bullet points with the directory and brief reason.
+
+## ⚠️ Review Before Cleaning
+List directories that need user review before any cleanup.
+Use bullet points with the directory and why.
+
+## 🛡️ Do Not Delete
+List system folders and important data directories that should NOT be touched.
+Use bullet points with the directory and why it's critical.
+
+## 💡 Recommendations
+Provide 2-3 specific, actionable cleanup recommendations.
+
+Be concise. Use short bullet points."""
     
     try:
         with console.status(f"[cyan]{ICONS['ai']} Analyzing with {model}...", spinner="dots"):
@@ -1330,10 +1416,12 @@ def main_menu():
                 ))
                 
                 analysis = ai_analyze_results(last_results, settings['ollama_model'])
-                
+
                 console.print()
+                # Render as Markdown for proper formatting
+                md = Markdown(analysis)
                 console.print(Panel(
-                    analysis,
+                    md,
                     title=f"{ICONS['success']} AI Recommendations",
                     border_style="green",
                     padding=(1, 2)
