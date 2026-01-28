@@ -30,6 +30,12 @@
 - **Code Review:** Passed (all fixes applied)
 - **Codebase Audit:** 8.5/10 score
 
+## Maintenance Policy
+
+- **CI/CD:** GitHub Actions runs tests on every push/PR
+- **Dependencies:** Update monthly (minor versions)
+- **Code Duplication:** Accepted as conscious trade-off (see KNOWN_ISSUES.md)
+
 ## Files Changed
 
 | File | Changes |

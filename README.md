@@ -2,8 +2,10 @@
 
 A comprehensive disk management suite with beautiful terminal interfaces for finding duplicate files and analyzing disk space usage.
 
+![CI](https://github.com/thebiglaskowski/disk-utils/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen.svg)
 
 ## Features
 
