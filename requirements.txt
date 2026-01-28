@@ -8,3 +8,7 @@ questionary>=2.0.0    # Interactive CLI prompts
 # Optional dependencies (recommended)
 xxhash>=3.0.0         # Faster hashing for duplicate detection (10x faster than SHA-256)
 ollama>=0.1.0         # AI-powered analysis via local Ollama models
+
+# Development/Testing dependencies
+pytest>=7.0.0         # Test framework
+pytest-cov>=4.0.0     # Coverage reporting

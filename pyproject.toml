@@ -1,0 +1,43 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    "app.py",  # UI-heavy main menu
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    # Exclude interactive/UI code
+    "def show_banner",
+    "def main_menu",
+    "def interactive_menu",
+    "def settings_menu",
+    "def print_file_results",
+    "def print_dir_results",
+    "def print_age_analysis",
+    "def print_treemap",
+    "def print_disk_usage",
+    "def export_results",
+    "def ai_analyze_results",
+    "def get_ollama_models",
+    "def check_ollama_running",
+    "console.print",
+    "questionary.",
+    "def main\\(",
+    "def _print_summary",
+    "def process_duplicates",
+    "def _execute_action",
+]
+show_missing = true
