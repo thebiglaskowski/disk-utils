@@ -69,7 +69,8 @@ def parse_size(size_str: str) -> Optional[int]:
     match = re.match(r'^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)?$', size_str)
     if not match:
         try:
-            return int(size_str)
+            result = int(size_str)
+            return result if result >= 0 else None
         except ValueError:
             return None
     value = float(match.group(1))
@@ -786,6 +787,10 @@ def print_disk_usage(path: str):
         total, used, free = shutil.disk_usage(path)
     except FileNotFoundError:
         console.print(f"[red]{ICONS['error']} Path not found: {path}[/]")
+        return
+
+    if total == 0:
+        console.print(f"[yellow]{ICONS['warning']} Unable to determine disk usage for: {path}[/]")
         return
 
     pct_used = (used / total) * 100

@@ -717,7 +717,11 @@ def parse_size(size_str: str) -> Optional[int]:
     size_str = size_str.strip().upper()
     match = re.match(r'^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)?$', size_str)
     if not match:
-        return int(size_str)  # Assume bytes
+        try:
+            result = int(size_str)
+            return result if result >= 0 else None
+        except ValueError:
+            return None
     value = float(match.group(1))
     unit = match.group(2) or 'B'
     multipliers = {'B': 1, 'KB': 1024, 'MB': 1024**2, 'GB': 1024**3, 'TB': 1024**4}

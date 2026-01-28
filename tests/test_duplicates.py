@@ -96,6 +96,17 @@ class TestParseSize:
         """Test parsing decimal values."""
         assert parse_size("1.5MB") == int(1.5 * 1024 * 1024)
 
+    def test_invalid_string(self):
+        """Test that invalid strings return None instead of crashing."""
+        assert parse_size("invalid") is None
+        assert parse_size("-10MB") is None
+        assert parse_size("abc123") is None
+
+    def test_negative_values(self):
+        """Test that negative values return None."""
+        assert parse_size("-1") is None
+        assert parse_size("-100") is None
+
 
 class TestSizeUnits:
     """Tests for SIZE_UNITS constant."""

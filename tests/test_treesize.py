@@ -75,6 +75,13 @@ class TestParseSize:
     def test_invalid_input(self):
         """Test invalid input returns None."""
         assert parse_size("invalid") is None
+        assert parse_size("-10MB") is None
+        assert parse_size("abc123") is None
+
+    def test_negative_values(self):
+        """Test that negative values return None."""
+        assert parse_size("-1") is None
+        assert parse_size("-100") is None
 
 
 class TestParseAge:
