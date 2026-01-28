@@ -90,3 +90,10 @@ treesize_*.json
 
 # User settings (local configuration)
 .treesize/
+
+# AI assistant configuration
+.claude/
+.agents/
+
+# Windows artifacts
+nul
