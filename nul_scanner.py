@@ -198,28 +198,32 @@ def print_results(results: List[dict]):
 def delete_nul_file(filepath: str) -> Tuple[bool, str]:
     """
     Delete a nul file. On Windows, reserved names require the \\\\?\\ prefix
-    to bypass the name reservation.
+    and a direct Win32 API call to bypass the name reservation.
 
     Returns (success, message).
     """
     try:
         if os.name == 'nt':
-            # Windows: use \\?\ extended-length path to bypass reserved name check
-            abs_path = os.path.abspath(filepath)
-            extended_path = f"\\\\?\\{abs_path}"
-            # Try Python's os.remove with extended path first
-            try:
-                os.remove(extended_path)
-                return True, f"Deleted: {filepath}"
-            except OSError:
-                # Fallback: use ctypes to call DeleteFileW directly
-                if ctypes.windll.kernel32.DeleteFileW(extended_path):
-                    return True, f"Deleted: {filepath}"
-                error_code = ctypes.windll.kernel32.GetLastError()
-                return False, f"Failed (error {error_code}): {filepath}"
+            # Windows: use \\?\ extended-length path to bypass reserved name check.
+            # CRITICAL: Do NOT use os.path.abspath() here — it calls GetFullPathNameW
+            # internally, which resolves 'nul' to the NUL device (\\.\NUL) before we
+            # can prepend \\?\. The paths from scandir are already absolute.
+            # We normalize separators manually to ensure backslashes throughout.
+            clean_path = filepath.replace("/", "\\")
+            extended_path = "\\\\?\\" + clean_path
+
+            kernel32 = ctypes.windll.kernel32
+            kernel32.DeleteFileW.argtypes = [ctypes.c_wchar_p]
+            kernel32.DeleteFileW.restype = ctypes.c_int
+
+            if kernel32.DeleteFileW(extended_path):
+                return True, f"Nuked: {filepath}"
+
+            error_code = kernel32.GetLastError()
+            return False, f"Failed (Win32 error {error_code}): {filepath}"
         else:
             os.remove(filepath)
-            return True, f"Deleted: {filepath}"
+            return True, f"Nuked: {filepath}"
     except OSError as e:
         return False, f"Failed ({e}): {filepath}"
 
