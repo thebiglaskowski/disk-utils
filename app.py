@@ -38,6 +38,12 @@ from treesize_cli import (
     ICONS as TREE_ICONS,
 )
 
+from nul_scanner import (
+    main_menu as nul_menu,
+    show_banner as show_nul_banner,
+    ICONS as NUL_ICONS,
+)
+
 # --- Configuration ---
 console = Console()
 
@@ -58,6 +64,7 @@ ICONS = {
     'app': '🛠️',
     'duplicates': '🔍',
     'treesize': '💾',
+    'nul': '☢️',
     'exit': '🚪',
     'success': '✅',
     'info': 'ℹ️',
@@ -72,7 +79,7 @@ def show_main_banner():
     banner.append("              🛠️  DISK UTILS - Management Suite  🛠️              ", style="bold white")
     banner.append("║\n", style="bold magenta")
     banner.append("║", style="bold magenta")
-    banner.append("         Duplicate Finder  •  Disk Space Analyzer             ", style="dim white")
+    banner.append("      Duplicate Finder  •  Disk Analyzer  •  NUL Nuker      ", style="dim white")
     banner.append("║\n", style="bold magenta")
     banner.append("╚══════════════════════════════════════════════════════════════════╝", style="bold magenta")
     console.print(banner)
@@ -97,6 +104,11 @@ def show_about():
         "    - Extension breakdown\n"
         "    - AI-powered cleanup suggestions (Ollama)\n"
         "    - Export to CSV/JSON\n\n"
+        "  • [cyan]NUL Nuker[/] - Find & nuke reserved-name artifacts\n"
+        "    - Scan for 'nul' files (buggy tool artifacts)\n"
+        "    - Optional scan for all Windows reserved names\n"
+        "    - Safe deletion using \\\\\\\\?\\\\ extended path prefix\n"
+        "    - Dry-run mode with confirmation\n\n"
         "[dim]Press any key to return to the main menu...[/]",
         title=f"{ICONS['info']} About Disk Utils",
         border_style="cyan",
@@ -124,6 +136,10 @@ def main():
                 questionary.Choice(
                     f"{ICONS['treesize']} Disk Space Analyzer (TreeSize)",
                     value="treesize"
+                ),
+                questionary.Choice(
+                    f"{ICONS['nul']} NUL Nuker",
+                    value="nul_scanner"
                 ),
                 questionary.Choice(
                     f"{ICONS['info']} About",
@@ -167,6 +183,15 @@ def main():
                 console.print("\n[yellow]Returning to main menu...[/]")
             except SystemExit:
                 pass  # Catch sys.exit() from the module
+
+        elif choice == "nul_scanner":
+            console.clear()
+            try:
+                nul_menu()
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Returning to main menu...[/]")
+            except SystemExit:
+                pass
 
         elif choice == "about":
             console.clear()

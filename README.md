@@ -25,27 +25,50 @@ A comprehensive disk management suite with beautiful terminal interfaces for fin
 - **AI Analysis**: Get cleanup recommendations via Ollama (optional)
 - **Export**: Save results to CSV or JSON
 
+### NUL Nuker
+- **Find Reserved-Name Artifacts**: Scan for `nul` files created by buggy tools
+- **All Reserved Names**: Optionally scan for CON, PRN, AUX, COM1-9, LPT1-9
+- **Safe Deletion**: Uses `\\?\` extended path prefix to bypass Windows name reservation
+- **Dry Run**: Preview what will be deleted before nuking
+
 ## Installation
 
 ### Prerequisites
 - Python 3.8 or higher
-- pip (Python package manager)
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
-### Quick Install
+### Quick Install (uv)
 
 ```bash
 # Clone the repository
 git clone https://github.com/thebiglaskowski/disk-utils.git
 cd disk-utils
 
+# Create and activate a virtual environment
+uv venv
+.venv\Scripts\activate     # Windows (cmd / PowerShell)
+source .venv/bin/activate   # Linux / macOS / WSL
+
 # Install dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Optional: Install faster hashing
-pip install xxhash
+uv pip install xxhash
 
 # Optional: Install Ollama integration
-pip install ollama
+uv pip install ollama
+```
+
+### Quick Install (pip)
+
+```bash
+git clone https://github.com/thebiglaskowski/disk-utils.git
+cd disk-utils
+
+pip install -r requirements.txt
+
+# Optional
+pip install xxhash ollama
 ```
 
 ### Dependencies
@@ -128,6 +151,17 @@ This launches an interactive menu with options to:
 - Get AI analysis (requires Ollama)
 - Export results to CSV/JSON
 - Configure settings
+
+### NUL Nuker
+
+```bash
+python nul_scanner.py
+```
+
+Or select it from the main menu. Options:
+- Scan for `nul` files only
+- Scan for all Windows reserved-name files (CON, PRN, AUX, etc.)
+- Info panel explaining what nul files are and why they exist
 
 ## Screenshots
 
