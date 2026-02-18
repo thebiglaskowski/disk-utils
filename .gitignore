@@ -91,7 +91,7 @@ treesize_*.json
 # User settings (local configuration)
 .treesize/
 
-# AI assistant configuration
+# AI assistant / Claude Sentient configuration
 .claude/
 .agents/
 agents/
@@ -101,6 +101,7 @@ rules/
 schemas/
 templates/
 test-utils.js
+**/CLAUDE.md
 
 # Windows artifacts
 nul
