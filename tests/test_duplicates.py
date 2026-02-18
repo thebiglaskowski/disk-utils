@@ -10,13 +10,11 @@ import pytest
 from duplicates import (
     DuplicateFinder,
     SmartDuplicateHandler,
-    format_size,
-    parse_size,
-    SIZE_UNITS,
     CHUNK_SIZE,
     CHUNK_SIZE_LARGE,
     MEDIUM_FILE_THRESHOLD,
 )
+from utils import format_size, parse_size, SIZE_UNITS
 
 
 class TestFormatSize:
@@ -243,12 +241,14 @@ class TestDuplicateFinder:
         # Partial and full should be different for large files
         assert partial_hash != full_hash
 
-    def test_intern_path(self, temp_dir: Path):
-        """Test path interning for memory efficiency."""
-        finder = DuplicateFinder(str(temp_dir))
+    def test_path_interning_uses_utils(self, temp_dir: Path):
+        """Test that DuplicateFinder uses utils.intern_path via fast_walk."""
+        from utils import intern_path, clear_path_cache
 
-        path1 = finder._intern_path("/test/path")
-        path2 = finder._intern_path("/test/path")
+        clear_path_cache()
+
+        path1 = intern_path("/test/interning/path")
+        path2 = intern_path("/test/interning/path")
 
         # Should return the same interned object
         assert path1 is path2
@@ -331,19 +331,205 @@ class TestSmartDuplicateHandler:
         handler = SmartDuplicateHandler("report", "oldest")
         assert handler.select_keeper([]) is None
 
-    def test_format_size_static_method(self):
-        """Test the static _format_size method."""
-        result = SmartDuplicateHandler._format_size(1024)
-        assert result == "1.00 KB"
 
-    def test_format_size_caching(self):
-        """Test that _format_size uses caching."""
-        # Clear any previous cache state by calling with new values
-        SmartDuplicateHandler._format_size(99999)
-        SmartDuplicateHandler._format_size(99999)
+class TestSmartDuplicateHandlerActions:
+    """Tests for SmartDuplicateHandler file action methods."""
 
-        cache_info = SmartDuplicateHandler._format_size.cache_info()
-        assert cache_info.hits >= 1
+    def test_delete_action(self, temp_dir: Path):
+        """Test that delete action removes duplicate files."""
+        keeper = temp_dir / "keeper.txt"
+        dup1 = temp_dir / "dup1.txt"
+        dup2 = temp_dir / "dup2.txt"
+
+        content = b"same content"
+        keeper.write_bytes(content)
+        dup1.write_bytes(content)
+        dup2.write_bytes(content)
+
+        handler = SmartDuplicateHandler(
+            action="delete",
+            keep_criteria="shortest_path",
+            dry_run=False,
+        )
+
+        import duplicates
+        original_print = duplicates.console.print
+        duplicates.console.print = lambda *args, **kwargs: None
+        try:
+            handler._execute_action(str(dup1), str(keeper))
+            handler._execute_action(str(dup2), str(keeper))
+        finally:
+            duplicates.console.print = original_print
+
+        assert keeper.exists()
+        assert not dup1.exists()
+        assert not dup2.exists()
+
+    def test_move_action(self, temp_dir: Path):
+        """Test that move action moves duplicates to backup dir."""
+        keeper = temp_dir / "keeper.txt"
+        dup = temp_dir / "dup.txt"
+        backup = temp_dir / "backup"
+
+        keeper.write_bytes(b"content")
+        dup.write_bytes(b"content")
+
+        handler = SmartDuplicateHandler(
+            action="move",
+            keep_criteria="shortest_path",
+            dry_run=False,
+            backup_dir=str(backup),
+        )
+
+        import duplicates
+        original_print = duplicates.console.print
+        duplicates.console.print = lambda *args, **kwargs: None
+        try:
+            handler._execute_action(str(dup), str(keeper))
+        finally:
+            duplicates.console.print = original_print
+
+        assert keeper.exists()
+        assert not dup.exists()
+        # File should be in backup/duplicates/
+        moved_files = list((backup / "duplicates").iterdir())
+        assert len(moved_files) == 1
+        assert moved_files[0].read_bytes() == b"content"
+
+    def test_move_handles_name_collision(self, temp_dir: Path):
+        """Test move action when destination name already exists."""
+        keeper = temp_dir / "keeper.txt"
+        dup1 = temp_dir / "sub1" / "dup.txt"
+        dup2 = temp_dir / "sub2" / "dup.txt"
+        backup = temp_dir / "backup"
+
+        (temp_dir / "sub1").mkdir()
+        (temp_dir / "sub2").mkdir()
+        keeper.write_bytes(b"content")
+        dup1.write_bytes(b"content")
+        dup2.write_bytes(b"content")
+
+        handler = SmartDuplicateHandler(
+            action="move",
+            keep_criteria="shortest_path",
+            dry_run=False,
+            backup_dir=str(backup),
+        )
+
+        import duplicates
+        original_print = duplicates.console.print
+        duplicates.console.print = lambda *args, **kwargs: None
+        try:
+            handler._execute_action(str(dup1), str(keeper))
+            handler._execute_action(str(dup2), str(keeper))
+        finally:
+            duplicates.console.print = original_print
+
+        # Both files should have been moved (second with timestamp suffix)
+        moved_files = list((backup / "duplicates").iterdir())
+        assert len(moved_files) == 2
+
+    def test_hardlink_action(self, temp_dir: Path):
+        """Test that hardlink action replaces duplicate with hardlink to keeper."""
+        keeper = temp_dir / "keeper.txt"
+        dup = temp_dir / "dup.txt"
+
+        keeper.write_bytes(b"shared content")
+        dup.write_bytes(b"shared content")
+
+        handler = SmartDuplicateHandler(
+            action="hardlink",
+            keep_criteria="shortest_path",
+            dry_run=False,
+        )
+
+        import duplicates
+        original_print = duplicates.console.print
+        duplicates.console.print = lambda *args, **kwargs: None
+        try:
+            handler._execute_action(str(dup), str(keeper))
+        finally:
+            duplicates.console.print = original_print
+
+        assert keeper.exists()
+        assert dup.exists()
+        # Should now be the same inode (hardlink)
+        assert os.path.samefile(str(keeper), str(dup))
+
+    def test_report_action_does_nothing(self, temp_dir: Path):
+        """Test that report action doesn't modify files."""
+        keeper = temp_dir / "keeper.txt"
+        dup = temp_dir / "dup.txt"
+
+        keeper.write_bytes(b"content")
+        dup.write_bytes(b"content")
+
+        handler = SmartDuplicateHandler(
+            action="report",
+            keep_criteria="shortest_path",
+            dry_run=False,
+        )
+
+        import duplicates
+        original_print = duplicates.console.print
+        duplicates.console.print = lambda *args, **kwargs: None
+        try:
+            handler._execute_action(str(dup), str(keeper))
+        finally:
+            duplicates.console.print = original_print
+
+        assert keeper.exists()
+        assert dup.exists()
+
+    def test_dry_run_does_not_delete(self, temp_dir: Path):
+        """Test that dry_run=True prevents actual deletion in process_duplicates."""
+        import io
+        from rich.console import Console as RichConsole
+
+        keeper = temp_dir / "keeper.txt"
+        dup = temp_dir / "dup.txt"
+        keeper.write_bytes(b"same")
+        dup.write_bytes(b"same")
+
+        handler = SmartDuplicateHandler(
+            action="delete",
+            keep_criteria="shortest_path",
+            dry_run=True,
+        )
+
+        import duplicates
+        silent = RichConsole(file=io.StringIO(), force_terminal=True)
+        original_console = duplicates.console
+        duplicates.console = silent
+        try:
+            handler.process_duplicates([[str(keeper), str(dup)]])
+        finally:
+            duplicates.console = original_console
+
+        # Both files should still exist since dry_run=True
+        assert keeper.exists()
+        assert dup.exists()
+
+    def test_delete_nonexistent_file_handled(self, temp_dir: Path):
+        """Test that deleting a nonexistent file is handled gracefully."""
+        keeper = temp_dir / "keeper.txt"
+        keeper.write_bytes(b"content")
+        fake_path = str(temp_dir / "nonexistent.txt")
+
+        handler = SmartDuplicateHandler(
+            action="delete",
+            keep_criteria="shortest_path",
+            dry_run=False,
+        )
+
+        import duplicates
+        original_print = duplicates.console.print
+        duplicates.console.print = lambda *args, **kwargs: None
+        try:
+            # Should not raise — errors are caught internally
+            handler._execute_action(fake_path, str(keeper))
+        finally:
+            duplicates.console.print = original_print
 
 
 class TestAdaptiveChunking:

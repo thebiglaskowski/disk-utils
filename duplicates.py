@@ -22,13 +22,9 @@ import argparse
 import sys
 import shutil
 from collections import defaultdict
-from typing import List, Optional, Set, Tuple, Dict, Generator
+from typing import List, Optional, Set, Tuple, Dict
 from datetime import datetime
-import platform
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
-import re
-from functools import lru_cache
 
 # Optional faster hashing with xxhash
 try:
@@ -47,7 +43,12 @@ from rich import box
 
 # Questionary for interactive menus
 import questionary
-from questionary import Style
+
+# Shared utilities
+from utils import (
+    SIZE_UNITS, SKIP_DIRS, format_size, parse_size, fast_walk,
+    create_menu_style, intern_path, clear_path_cache,
+)
 
 # --- Configuration & Constants ---
 CHUNK_SIZE = 65536  # Read files in chunks of 64KB for small files
@@ -55,22 +56,9 @@ CHUNK_SIZE_LARGE = 1048576  # 1MB chunks for large files (better I/O throughput)
 LARGE_FILE_THRESHOLD = 100 * 1024 * 1024  # 100MB - use memory mapping for larger files
 MEDIUM_FILE_THRESHOLD = 10 * 1024 * 1024  # 10MB - use larger chunks
 
-# Size unit tuple (constant, not recreated each call)
-SIZE_UNITS = ('B', 'KB', 'MB', 'GB', 'TB', 'PB')
-
 console = Console()
 
-# Custom style for questionary prompts
-MENU_STYLE = Style([
-    ('qmark', 'fg:#673ab7 bold'),
-    ('question', 'bold'),
-    ('answer', 'fg:#f44336 bold'),
-    ('pointer', 'fg:#673ab7 bold'),
-    ('highlighted', 'fg:#673ab7 bold'),
-    ('selected', 'fg:#cc5454'),
-    ('separator', 'fg:#cc5454'),
-    ('instruction', 'fg:#808080'),
-])
+MENU_STYLE = create_menu_style('#f44336', '#cc5454', '#cc5454')
 
 # Icons
 ICONS = {
@@ -96,49 +84,6 @@ SKIP_DIRS = {
     'Windows', 'ProgramData', '.cache', '.npm', '.yarn',
     'AppData', '.local', 'site-packages', '.tox', '.pytest_cache',
 }
-
-
-def fast_walk(top: str, skip_dirs: Optional[Set[str]] = None) -> Generator[Tuple[str, List[str], List[os.DirEntry]], None, None]:
-    """
-    Fast directory walker using os.scandir() instead of os.walk().
-
-    Returns DirEntry objects instead of filenames, avoiding redundant stat() calls.
-    On Windows/NTFS, DirEntry.stat() is free (cached from directory entry).
-
-    Yields: (dirpath, dirnames, file_entries) where file_entries are DirEntry objects.
-    """
-    skip_dirs = skip_dirs or SKIP_DIRS
-
-    # Use a stack for iterative traversal (avoids recursion limit)
-    stack = [top]
-
-    while stack:
-        current_dir = stack.pop()
-        dirnames = []
-        file_entries = []
-
-        try:
-            with os.scandir(current_dir) as it:
-                for entry in it:
-                    try:
-                        if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in skip_dirs:
-                                dirnames.append(entry.name)
-                        elif entry.is_file(follow_symlinks=False):
-                            file_entries.append(entry)
-                    except OSError:
-                        # Permission denied or other error on this entry
-                        continue
-        except OSError:
-            # Permission denied on directory
-            continue
-
-        # Yield current directory results
-        yield current_dir, dirnames, file_entries
-
-        # Add subdirectories to stack (reverse for consistent ordering)
-        for dirname in reversed(dirnames):
-            stack.append(os.path.join(current_dir, dirname))
 
 
 def show_banner():
@@ -316,7 +261,7 @@ class SmartDuplicateHandler:
 
     def _print_summary(self, groups: int, files: int, space: int):
         """Print final summary with statistics."""
-        space_str = self._format_size(space)
+        space_str = format_size(space)
         mode_text = "[yellow]DRY RUN[/] - No files modified" if self.dry_run else "[green]COMPLETE[/]"
         
         summary = Table(box=box.DOUBLE_EDGE, show_header=False, title="Summary", title_style="bold")
@@ -331,24 +276,13 @@ class SmartDuplicateHandler:
         console.print()
         console.print(summary)
 
-    @staticmethod
-    @lru_cache(maxsize=1024)
-    def _format_size(size_bytes: int) -> str:
-        """Format bytes to human readable string. Cached for performance."""
-        for unit in SIZE_UNITS:
-            if size_bytes < 1024:
-                return f"{size_bytes:.2f} {unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.2f} PB"
-
-
 class DuplicateFinder:
     """Finds duplicate files using a 3-stage filtering approach."""
 
     __slots__ = (
         'root_dir', 'max_threads', 'min_size', 'max_size',
         'include_extensions', 'exclude_extensions', 'use_fast_hash',
-        'skip_hardlinks', '_inode_map', '_interned_dirs'
+        'skip_hardlinks', '_inode_map',
     )
 
     def __init__(
@@ -372,7 +306,6 @@ class DuplicateFinder:
         self.use_fast_hash = use_fast_hash and XXHASH_AVAILABLE
         self.skip_hardlinks = skip_hardlinks
         self._inode_map: Dict[Tuple[int, int], str] = {}  # (dev, inode) -> first seen path
-        self._interned_dirs: Dict[str, str] = {}  # Cache for interned directory paths
 
     def _should_include_file(self, filepath: str, size: int) -> bool:
         """Check if file matches filter criteria."""
@@ -435,12 +368,6 @@ class DuplicateFinder:
             # Fall back to regular reading if mmap fails
             return None
 
-    def _intern_path(self, dirpath: str) -> str:
-        """Intern directory paths to reduce memory usage from duplicate strings."""
-        if dirpath not in self._interned_dirs:
-            self._interned_dirs[dirpath] = sys.intern(dirpath)
-        return self._interned_dirs[dirpath]
-
     def find_duplicates(self) -> List[List[str]]:
         """Find all duplicate files with progress indicators using optimized fast_walk."""
 
@@ -461,7 +388,7 @@ class DuplicateFinder:
         skipped_hardlinks = 0
         skipped_filters = 0
         self._inode_map.clear()
-        self._interned_dirs.clear()
+        clear_path_cache()
 
         with Progress(
             SpinnerColumn(),
@@ -474,18 +401,15 @@ class DuplicateFinder:
             task = progress.add_task("[cyan]Walking directory tree...", files=0)
 
             # Use fast_walk with DirEntry objects (avoids redundant stat calls)
-            for dirpath, dirnames, file_entries in fast_walk(self.root_dir, SKIP_DIRS):
-                # Intern the directory path to save memory
-                interned_dir = self._intern_path(dirpath)
-
+            for dirpath, dirnames, file_entries, _depth in fast_walk(self.root_dir, SKIP_DIRS):
                 for entry in file_entries:
                     try:
                         # DirEntry.stat() is cached on Windows NTFS - no extra syscall
                         stat_info = entry.stat(follow_symlinks=False)
                         size = stat_info.st_size
 
-                        # Build filepath using interned directory
-                        filepath = os.path.join(interned_dir, entry.name)
+                        # Build filepath using interned directory path from fast_walk
+                        filepath = os.path.join(dirpath, entry.name)
 
                         # Apply filters
                         if not self._should_include_file(filepath, size):
@@ -709,34 +633,6 @@ def interactive_menu() -> dict:
         'skip_hardlinks': True,
         'max_threads': None,
     }
-
-
-def parse_size(size_str: str) -> Optional[int]:
-    """Parse human-readable size string to bytes (e.g., '10MB', '1GB')."""
-    if size_str is None:
-        return None
-    size_str = size_str.strip().upper()
-    match = re.match(r'^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)?$', size_str)
-    if not match:
-        try:
-            result = int(size_str)
-            return result if result >= 0 else None
-        except ValueError:
-            return None
-    value = float(match.group(1))
-    unit = match.group(2) or 'B'
-    multipliers = {'B': 1, 'KB': 1024, 'MB': 1024**2, 'GB': 1024**3, 'TB': 1024**4}
-    return int(value * multipliers.get(unit, 1))
-
-
-@lru_cache(maxsize=1024)
-def format_size(size_bytes: int) -> str:
-    """Format bytes to human readable string. Cached for performance."""
-    for unit in SIZE_UNITS:
-        if size_bytes < 1024:
-            return f"{size_bytes:.2f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.2f} PB"
 
 
 def main():

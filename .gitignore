@@ -94,6 +94,13 @@ treesize_*.json
 # AI assistant configuration
 .claude/
 .agents/
+agents/
+dashboard/
+profiles/
+rules/
+schemas/
+templates/
+test-utils.js
 
 # Windows artifacts
 nul

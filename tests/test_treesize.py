@@ -7,16 +7,9 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from treesize_cli import (
-    format_size,
-    parse_size,
-    parse_age,
-    get_size_style,
-    create_size_bar,
-    SIZE_UNITS,
-    scan_largest_files,
-    scan_largest_dirs,
-)
+from treesize_scan import parse_age, scan_largest_files, scan_largest_dirs
+from treesize_display import get_size_style, create_size_bar
+from utils import format_size, parse_size, SIZE_UNITS
 
 
 class TestFormatSize:

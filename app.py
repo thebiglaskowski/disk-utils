@@ -16,48 +16,21 @@ import os
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich import box
 
 # Questionary for interactive menus
 import questionary
-from questionary import Style
 
-# Import our utilities
-from duplicates import (
-    DuplicateFinder,
-    SmartDuplicateHandler,
-    interactive_menu as duplicates_menu,
-    show_banner as show_duplicates_banner,
-    ICONS as DUP_ICONS,
-    console as dup_console,
-)
+# Shared utilities
+from utils import create_menu_style
 
-from treesize_cli import (
-    main_menu as treesize_menu,
-    show_banner as show_treesize_banner,
-    ICONS as TREE_ICONS,
-)
-
-from nul_scanner import (
-    main_menu as nul_menu,
-    show_banner as show_nul_banner,
-    ICONS as NUL_ICONS,
-)
+# Import tool modules
+from treesize_cli import main_menu as treesize_menu
+from nul_scanner import main_menu as nul_menu
 
 # --- Configuration ---
 console = Console()
 
-# Custom style for questionary
-MENU_STYLE = Style([
-    ('qmark', 'fg:#673ab7 bold'),
-    ('question', 'bold'),
-    ('answer', 'fg:#00bcd4 bold'),
-    ('pointer', 'fg:#673ab7 bold'),
-    ('highlighted', 'fg:#673ab7 bold'),
-    ('selected', 'fg:#00bcd4'),
-    ('separator', 'fg:#673ab7'),
-    ('instruction', 'fg:#808080'),
-])
+MENU_STYLE = create_menu_style('#00bcd4')
 
 # Icons
 ICONS = {

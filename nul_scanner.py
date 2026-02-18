@@ -12,7 +12,7 @@ Dependencies: pip install rich questionary
 import os
 import sys
 import ctypes
-from typing import List, Optional, Set, Tuple, Generator
+from typing import List, Optional, Set, Tuple
 from datetime import datetime
 
 from rich.console import Console
@@ -23,21 +23,14 @@ from rich.text import Text
 from rich import box
 
 import questionary
-from questionary import Style
+
+# Shared utilities
+from utils import SKIP_DIRS, format_size, create_menu_style
 
 # --- Configuration ---
 console = Console()
 
-MENU_STYLE = Style([
-    ('qmark', 'fg:#673ab7 bold'),
-    ('question', 'bold'),
-    ('answer', 'fg:#ff5722 bold'),
-    ('pointer', 'fg:#673ab7 bold'),
-    ('highlighted', 'fg:#673ab7 bold'),
-    ('selected', 'fg:#ff5722'),
-    ('separator', 'fg:#673ab7'),
-    ('instruction', 'fg:#808080'),
-])
+MENU_STYLE = create_menu_style('#ff5722')
 
 ICONS = {
     'nuke': '☢️',
@@ -59,14 +52,6 @@ WINDOWS_RESERVED_NAMES = {
     'lpt0', 'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9',
 }
 
-SKIP_DIRS = {
-    '.git', '__pycache__', 'node_modules', '.venv', 'venv', '.env',
-    '$RECYCLE.BIN', 'System Volume Information', '.Trash-1000',
-    'Windows', 'ProgramData', '.cache', '.npm', '.yarn',
-    'AppData', '.local', 'site-packages', '.tox', '.pytest_cache',
-}
-
-
 def show_banner():
     """Display a styled startup banner."""
     banner = Text()
@@ -80,15 +65,6 @@ def show_banner():
     banner.append("╚══════════════════════════════════════════════════════════════╝", style="bold red")
     console.print(banner)
     console.print()
-
-
-def format_size(num_bytes: int) -> str:
-    """Return human-readable file size."""
-    for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
-        if num_bytes < 1024:
-            return f"{num_bytes:.2f} {unit}"
-        num_bytes /= 1024
-    return f"{num_bytes:.2f} PB"
 
 
 def scan_nul_files(
